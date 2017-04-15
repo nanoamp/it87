@@ -12,6 +12,7 @@
  *
  *  Supports: IT8603E  Super I/O chip w/LPC interface
  *            IT8607E  Super I/O chip w/LPC interface
+ *            IT8613E  Super I/O chip w/LPC interface
  *            IT8620E  Super I/O chip w/LPC interface
  *            IT8622E  Super I/O chip w/LPC interface
  *            IT8623E  Super I/O chip w/LPC interface
@@ -79,8 +80,8 @@
 
 enum chips { it87, it8712, it8716, it8718, it8720, it8721, it8728, it8732,
 	     it8771, it8772, it8781, it8782, it8783, it8786, it8790,
-	     it8792, it8603, it8607, it8620, it8622, it8628, it8655, it8665,
-	     it8686 };
+	     it8792, it8603, it8607, it8613, it8620, it8622, it8628, it8655,
+	     it8665, it8686 };
 
 static unsigned short force_id;
 module_param(force_id, ushort, 0);
@@ -209,6 +210,7 @@ static inline void superio_exit(int ioreg)
 #define IT8790E_DEVID 0x8790
 #define IT8603E_DEVID 0x8603
 #define IT8607E_DEVID 0x8607
+#define IT8613E_DEVID 0x8613
 #define IT8620E_DEVID 0x8620
 #define IT8622E_DEVID 0x8622
 #define IT8623E_DEVID 0x8623
@@ -556,6 +558,16 @@ static const struct it87_devices it87_devices[] = {
 		.num_temp_limit = 3,
 		.peci_mask = 0x07,
 	},
+	[it8613] = {
+		.name = "it8613",
+		.suffix = "E",
+		.features = FEAT_NEWER_AUTOPWM | FEAT_11MV_ADC | FEAT_16BIT_FANS
+		  | FEAT_TEMP_OFFSET | FEAT_TEMP_PECI | FEAT_FIVE_FANS
+		  | FEAT_FIVE_PWM | FEAT_IN7_INTERNAL | FEAT_PWM_FREQ2
+		  | FEAT_AVCC3 | FEAT_SCALING,
+		.num_temp_limit = 6,
+		.peci_mask = 0x07,
+	},
 	[it8620] = {
 		.name = "it8620",
 		.suffix = "E",
@@ -891,7 +903,10 @@ static void it87_update_pwm_ctrl(struct it87_data *data, int nr)
 {
 	data->pwm_ctrl[nr] = it87_read_value(data, data->REG_PWM[nr]);
 	if (has_newer_autopwm(data)) {
-		data->pwm_temp_map[nr] = data->pwm_ctrl[nr] & 0x03;
+		if (data->type == it8613)
+			data->pwm_temp_map[nr] = data->pwm_ctrl[nr] & 0x38;
+		else
+			data->pwm_temp_map[nr] = data->pwm_ctrl[nr] & 0x03;
 		data->pwm_duty[nr] = it87_read_value(data,
 						     IT87_REG_PWM_DUTY[nr]);
 	} else {
@@ -1742,10 +1757,16 @@ static ssize_t show_pwm_temp_map(struct device *dev,
 	int map;
 
 	map = data->pwm_temp_map[nr];
-	if (map >= 3)
-		map = 0;	/* Should never happen */
-	if (nr >= 3)		/* pwm channels 3..6 map to temp4..6 */
-		map += 3;
+	if (data->type == it8613) {
+		map >>= 3;
+		if (map >= 7)
+			map = 0;	/* Should never happen */
+	} else {
+		if (map >= 3)
+			map = 0;	/* Should never happen */
+		if (nr >= 3)		/* pwm channels 3..6 map to temp4..6 */
+			map += 3;
+	}
 
 	return sprintf(buf, "%d\n", (int)BIT(map));
 }
@@ -1763,7 +1784,7 @@ static ssize_t set_pwm_temp_map(struct device *dev,
 	if (kstrtol(buf, 10, &val) < 0)
 		return -EINVAL;
 
-	if (nr >= 3)
+	if (nr >= 3 && data->type != it8613)
 		val -= 3;
 
 	switch (val) {
@@ -1776,9 +1797,26 @@ static ssize_t set_pwm_temp_map(struct device *dev,
 	case BIT(2):
 		reg = 0x02;
 		break;
+	case BIT(3):
+		reg = 0x03;
+		break;
+	case BIT(4):
+		reg = 0x04;
+		break;
+	case BIT(5):
+		reg = 0x05;
+		break;
+	case BIT(5) | BIT(6):
+		reg = 0x06;
+		break;
 	default:
 		return -EINVAL;
 	}
+
+	if (data->type == it8613)
+		reg <<= 3;
+	else if (reg > 0x02)
+		return -EINVAL;
 
 	mutex_lock(&data->update_lock);
 	it87_update_pwm_ctrl(data, nr);
@@ -2787,6 +2825,9 @@ static int __init it87_find(int sioaddr, unsigned short *address,
 	case IT8607E_DEVID:
 		sio_data->type = it8607;
 		break;
+	case IT8613E_DEVID:
+		sio_data->type = it8613;
+		break;
 	case IT8620E_DEVID:
 		sio_data->type = it8620;
 		break;
@@ -2954,6 +2995,43 @@ static int __init it87_find(int sioaddr, unsigned short *address,
 			sio_data->skip_in |= BIT(5); /* No VIN5 */
 			sio_data->skip_in |= BIT(6); /* No VIN6 */
 		}
+
+		sio_data->beep_pin = superio_inb(sioaddr,
+						 IT87_SIO_BEEP_PIN_REG) & 0x3f;
+	} else if (sio_data->type == it8613) {
+		int reg27, reg29, reg2a;
+
+		superio_select(sioaddr, GPIO);
+
+		/* Check for pwm3, fan3, pwm5, fan5 */
+		reg27 = superio_inb(sioaddr, IT87_SIO_GPIO3_REG);
+		if (reg27 & BIT(1))
+			sio_data->skip_fan |= BIT(4);
+		if (reg27 & BIT(3))
+			sio_data->skip_pwm |= BIT(4);
+		if (reg27 & BIT(6))
+			sio_data->skip_pwm |= BIT(2);
+		if (reg27 & BIT(7))
+			sio_data->skip_fan |= BIT(2);
+
+		/* Check for pwm2, fan2 */
+		reg29 = superio_inb(sioaddr, IT87_SIO_GPIO5_REG);
+		if (reg29 & BIT(1))
+			sio_data->skip_pwm |= BIT(1);
+		if (reg29 & BIT(2))
+			sio_data->skip_fan |= BIT(1);
+
+		/* Check for pwm4, fan4 */
+		reg2a = superio_inb(sioaddr, IT87_SIO_PINX1_REG);
+		if (!(reg2a & BIT(0)) || (reg29 & BIT(7))) {
+			sio_data->skip_fan |= BIT(3);
+			sio_data->skip_pwm |= BIT(3);
+		}
+
+		sio_data->skip_pwm |= BIT(0); /* No pwm1 */
+		sio_data->skip_fan |= BIT(0); /* No fan1 */
+		sio_data->skip_in |= BIT(3);  /* No VIN3 */
+		sio_data->skip_in |= BIT(6);  /* No VIN6 */
 
 		sio_data->beep_pin = superio_inb(sioaddr,
 						 IT87_SIO_BEEP_PIN_REG) & 0x3f;
@@ -3370,6 +3448,16 @@ static void it87_init_device(struct platform_device *pdev)
 		data->REG_TEMP_LOW = IT87_REG_TEMP_LOW;
 		data->REG_TEMP_HIGH = IT87_REG_TEMP_HIGH;
 		break;
+	case it8613:
+                data->REG_FAN = IT87_REG_FAN;
+                data->REG_FANX = IT87_REG_FANX;
+                data->REG_FAN_MIN = IT87_REG_FAN_MIN;
+                data->REG_FANX_MIN = IT87_REG_FANX_MIN;
+                data->REG_PWM = IT87_REG_PWM_8665;
+                data->REG_TEMP_OFFSET = IT87_REG_TEMP_OFFSET;
+                data->REG_TEMP_LOW = IT87_REG_TEMP_LOW;
+                data->REG_TEMP_HIGH = IT87_REG_TEMP_HIGH;
+                break;
 	default:
 		data->REG_FAN = IT87_REG_FAN;
 		data->REG_FANX = IT87_REG_FANX;
