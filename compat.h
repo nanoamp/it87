@@ -65,4 +65,26 @@ u8 vid_which_vrm(void)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+/*
+ * New API in 5.0
+ */
+#define kobj_to_dev(kobj)	container_of(kobj, struct device, kobj)
+#endif
+
+#ifndef DEFINE_SIMPLE_DEV_PM_OPS
+/*
+ * New API in 5.17
+ */
+#define DEFINE_SIMPLE_DEV_PM_OPS(name, suspend_fn, resume_fn) \
+	SIMPLE_DEV_PM_OPS(name, suspend_fn, resume_fn)
+
+static void __maybe_unused it87_resume_sio(struct platform_device *pdev);
+static int __maybe_unused it87_resume(struct device *dev);
+#endif
+
+#ifndef pm_sleep_ptr
+#define pm_sleep_ptr(_ptr)	_ptr
+#endif
+
 #endif /* COMPAT_H */

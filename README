@@ -1,3 +1,122 @@
+SUPPORT NOTE - Sep 2024
+============
+
+Non-Gigabyte Boards
+-------------------
+
+Just a note that it looks like some of these chips are now being
+found in other vendor's motherboards.
+
+Most of the testing I am doing is on Gigabyte boards, so other
+vendor's board may show some differences which are not directly
+related to the chip.
+
+I will attempt to support other boards, but cannot promise anything.
+
+
+New Gigabyte Fan Control Chip
+-----------------------------
+
+Also, it appears that Gigabyte have introduced a separate chip in
+some boards which control the fan speed, and as such the while you
+can measure the speed, you cannot change it.  This is something it
+am tracking, but am yet to find a solution.
+
+
+Additional Support Information Requested
+----------------------------------------
+
+Related to this, please provide the Linux distribution, the Linux
+kernel version and the details from:
+
+cat /sys/class/dmi/id/board_vendor
+cat /sys/class/dmi/id/board_name
+
+
+Technical Documentation
+-----------------------
+
+As a final note, no one has been able to obtain any technical
+documentation on these chipsets for a long time.
+
+If you do have any contacts with Gigabyte or ITE who can assist
+in obtaining documentation, please see what you can do, or let
+me know and I'll follow it up.
+
+Frank Crawford
+Sep 2024
+
+CURRENT DEVICE STATUS - Sep 2022
+=====================
+
+This version is based on the original one from a1wong/it87
+with updates from around the Internet.
+
+It should be a superset of the chipsets found in the official
+Linux kernel module, and includes any changes found there.
+
+The level of support depends on what the community provides, as
+I am only collating changes, not developing then.
+
+Currently supported devices (from it87.c) are:
+
+ *  Supports: IT8603E  Super I/O chip w/LPC interface
+ *            IT8606E  Super I/O chip w/LPC interface
+ *            IT8607E  Super I/O chip w/LPC interface
+ *            IT8613E  Super I/O chip w/LPC interface
+ *            IT8620E  Super I/O chip w/LPC interface
+ *            IT8622E  Super I/O chip w/LPC interface
+ *            IT8623E  Super I/O chip w/LPC interface
+ *            IT8625E  Super I/O chip w/LPC interface
+ *            IT8628E  Super I/O chip w/LPC interface
+ *            IT8528E  Super I/O chip w/LPC interface
+ *            IT8655E  Super I/O chip w/LPC interface
+ *            IT8665E  Super I/O chip w/LPC interface
+ *            IT8686E  Super I/O chip w/LPC interface
+ *            IT8688E  Super I/O chip w/LPC interface
+ *            IT8689E  Super I/O chip w/LPC interface
+ *            IT8695E  Super I/O chip w/LPC interface
+ *            IT8705F  Super I/O chip w/LPC interface
+ *            IT8712F  Super I/O chip w/LPC interface
+ *            IT8716F  Super I/O chip w/LPC interface
+ *            IT8718F  Super I/O chip w/LPC interface
+ *            IT8720F  Super I/O chip w/LPC interface
+ *            IT8721F  Super I/O chip w/LPC interface
+ *            IT8726F  Super I/O chip w/LPC interface
+ *            IT8728F  Super I/O chip w/LPC interface
+ *            IT8732F  Super I/O chip w/LPC interface
+ *            IT8736F  Super I/O chip w/LPC interface
+ *            IT8738E  Super I/O chip w/LPC interface
+ *            IT8758E  Super I/O chip w/LPC interface
+ *            IT8771E  Super I/O chip w/LPC interface
+ *            IT8772E  Super I/O chip w/LPC interface
+ *            IT8781F  Super I/O chip w/LPC interface
+ *            IT8782F  Super I/O chip w/LPC interface
+ *            IT8783E/F Super I/O chip w/LPC interface
+ *            IT8786E  Super I/O chip w/LPC interface
+ *            IT8790E  Super I/O chip w/LPC interface
+ *            IT8792E  Super I/O chip w/LPC interface
+ *            IT87952E  Super I/O chip w/LPC interface
+ *            Sis950   A clone of the IT8705F
+
+Updated Module Parameters
+-------------------------
+
+* force_id [short, short]
+
+  Force multiple chip ID to specified value, separated by `,'.
+  For example "force_id=0x8689,0x8633".  A value of 0 is ignored
+  for that chip.
+  Note: A single force_id value (e.g. "force_id=0x8689") is used for
+  all chips, to only set the first chip use "force_id=0x8689,0".
+  Should only be used for testing.
+
+Frank Crawford
+Jan 2023
+
+The original README is below.
+---------------------------------------------------------------------
+
 DRIVER REMOVAL NOTICE
 =====================
 
